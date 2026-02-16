@@ -47,7 +47,6 @@ func TestRewriter(t *testing.T) {
 
 func TestRewriter_GetMethodComment(t *testing.T) {
 	type fields struct {
-		fset   *token.FileSet
 		syntax []*ast.File
 		files  map[string]string
 		copied map[ast.Decl]bool
