@@ -119,8 +119,6 @@ func (d *Data) Directives() DirectiveList {
 }
 
 func BuildData(cfg *config.Config, plugins ...any) (*Data, error) {
-	cfg.ReloadAllPackages()
-
 	b := builder{
 		Config: cfg,
 		Schema: cfg.Schema,
