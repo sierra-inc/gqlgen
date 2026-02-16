@@ -4,48 +4,51 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/parser"
 	"go/token"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	"golang.org/x/tools/go/packages"
-
-	"github.com/99designs/gqlgen/internal/code"
 )
 
 type Rewriter struct {
-	pkg    *packages.Package
+	fset   *token.FileSet
+	syntax []*ast.File
 	files  map[string]string
 	copied map[ast.Decl]bool
 }
 
 func New(dir string) (*Rewriter, error) {
-	importPath := code.ImportPathForDir(dir)
-	if importPath == "" {
-		return nil, fmt.Errorf("import path not found for directory: %q", dir)
-	}
-	pkgs, err := packages.Load(&packages.Config{
-		Mode: packages.NeedSyntax | packages.NeedTypes,
-	}, importPath)
+	absDir, err := filepath.Abs(dir)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get absolute path for %q: %w", dir, err)
 	}
-	if len(pkgs) == 0 {
-		return nil, fmt.Errorf("package not found for importPath: %s", importPath)
+	fset := token.NewFileSet()
+	pkgMap, err := parser.ParseDir(fset, absDir, func(info fs.FileInfo) bool {
+		return !strings.HasSuffix(info.Name(), "_test.go")
+	}, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("parsing directory %q: %w", absDir, err)
 	}
-
+	var syntax []*ast.File
+	for _, pkg := range pkgMap {
+		for _, f := range pkg.Files {
+			syntax = append(syntax, f)
+		}
+	}
 	return &Rewriter{
-		pkg:    pkgs[0],
+		fset:   fset,
+		syntax: syntax,
 		files:  map[string]string{},
 		copied: map[ast.Decl]bool{},
 	}, nil
 }
 
 func (r *Rewriter) getSource(start, end token.Pos) string {
-	startPos := r.pkg.Fset.Position(start)
-	endPos := r.pkg.Fset.Position(end)
+	startPos := r.fset.Position(start)
+	endPos := r.fset.Position(end)
 
 	if startPos.Filename != endPos.Filename {
 		panic("cant get source spanning multiple files")
@@ -69,7 +72,7 @@ func (r *Rewriter) getFile(filename string) string {
 }
 
 func (r *Rewriter) GetPrevDecl(structname, methodname string) *ast.FuncDecl {
-	for _, f := range r.pkg.Syntax {
+	for _, f := range r.syntax {
 		for _, d := range f.Decls {
 			d, isFunc := d.(*ast.FuncDecl)
 			if !isFunc {
@@ -134,7 +137,7 @@ func (r *Rewriter) GetMethodBody(structname, methodname string) string {
 }
 
 func (r *Rewriter) MarkStructCopied(name string) {
-	for _, f := range r.pkg.Syntax {
+	for _, f := range r.syntax {
 		for _, d := range f.Decls {
 			d, isGen := d.(*ast.GenDecl)
 			if !isGen {
@@ -163,8 +166,8 @@ func (r *Rewriter) ExistingImports(filename string) []Import {
 	if err != nil {
 		panic(err)
 	}
-	for _, f := range r.pkg.Syntax {
-		pos := r.pkg.Fset.Position(f.Pos())
+	for _, f := range r.syntax {
+		pos := r.fset.Position(f.Pos())
 
 		if filename != pos.Filename {
 			continue
@@ -192,8 +195,8 @@ func (r *Rewriter) RemainingSource(filename string) string {
 	if err != nil {
 		panic(err)
 	}
-	for _, f := range r.pkg.Syntax {
-		pos := r.pkg.Fset.Position(f.Pos())
+	for _, f := range r.syntax {
+		pos := r.fset.Position(f.Pos())
 
 		if filename != pos.Filename {
 			continue

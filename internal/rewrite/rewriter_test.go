@@ -2,12 +2,12 @@ package rewrite
 
 import (
 	"go/ast"
+	"go/token"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/tools/go/packages"
 )
 
 func TestRewriter(t *testing.T) {
@@ -47,7 +47,7 @@ func TestRewriter(t *testing.T) {
 
 func TestRewriter_GetMethodComment(t *testing.T) {
 	type fields struct {
-		pkg    *packages.Package
+		syntax []*ast.File
 		files  map[string]string
 		copied map[ast.Decl]bool
 	}
@@ -64,27 +64,25 @@ func TestRewriter_GetMethodComment(t *testing.T) {
 		{
 			name: "comments",
 			fields: fields{
-				pkg: &packages.Package{
-					Syntax: []*ast.File{
-						{
-							Decls: []ast.Decl{
-								&ast.FuncDecl{
-									Name: &ast.Ident{Name: "Method"},
-									Doc: &ast.CommentGroup{
-										List: []*ast.Comment{
-											{
-												Text: "// comment",
-											},
-											{
-												Text: "// comment",
-											},
+				syntax: []*ast.File{
+					{
+						Decls: []ast.Decl{
+							&ast.FuncDecl{
+								Name: &ast.Ident{Name: "Method"},
+								Doc: &ast.CommentGroup{
+									List: []*ast.Comment{
+										{
+											Text: "// comment",
+										},
+										{
+											Text: "// comment",
 										},
 									},
-									Recv: &ast.FieldList{
-										List: []*ast.Field{
-											{
-												Type: &ast.Ident{Name: "Foo"},
-											},
+								},
+								Recv: &ast.FieldList{
+									List: []*ast.Field{
+										{
+											Type: &ast.Ident{Name: "Foo"},
 										},
 									},
 								},
@@ -103,27 +101,25 @@ func TestRewriter_GetMethodComment(t *testing.T) {
 		{
 			name: "directive in comment",
 			fields: fields{
-				pkg: &packages.Package{
-					Syntax: []*ast.File{
-						{
-							Decls: []ast.Decl{
-								&ast.FuncDecl{
-									Name: &ast.Ident{Name: "Method"},
-									Doc: &ast.CommentGroup{
-										List: []*ast.Comment{
-											{
-												Text: "// comment",
-											},
-											{
-												Text: "//nolint:test // test",
-											},
+				syntax: []*ast.File{
+					{
+						Decls: []ast.Decl{
+							&ast.FuncDecl{
+								Name: &ast.Ident{Name: "Method"},
+								Doc: &ast.CommentGroup{
+									List: []*ast.Comment{
+										{
+											Text: "// comment",
+										},
+										{
+											Text: "//nolint:test // test",
 										},
 									},
-									Recv: &ast.FieldList{
-										List: []*ast.Field{
-											{
-												Type: &ast.Ident{Name: "Foo"},
-											},
+								},
+								Recv: &ast.FieldList{
+									List: []*ast.Field{
+										{
+											Type: &ast.Ident{Name: "Foo"},
 										},
 									},
 								},
@@ -143,7 +139,8 @@ func TestRewriter_GetMethodComment(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := &Rewriter{
-				pkg:    tt.fields.pkg,
+				fset:   token.NewFileSet(),
+				syntax: tt.fields.syntax,
 				files:  tt.fields.files,
 				copied: tt.fields.copied,
 			}
