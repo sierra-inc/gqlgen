@@ -276,8 +276,6 @@ func (c ImplDirectivesContext) ErrReturn(errExpr string) string {
 }
 
 func BuildData(cfg *config.Config, plugins ...any) (*Data, error) {
-	cfg.ReloadAllPackages()
-
 	b := builder{
 		Config: cfg,
 		Schema: cfg.Schema,
