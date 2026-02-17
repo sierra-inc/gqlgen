@@ -43,14 +43,14 @@ func TestCollectFieldsCache_WriteLockContention(t *testing.T) {
 			// Generate unique queries for different cache keys
 			queries := make([]*ast.Field, tt.numUniqueKeys)
 			for i := 0; i < tt.numUniqueKeys; i++ {
-				_, _, op := generateComplexQuery(i)
+				_, op := generateComplexQuery(i)
 				if len(op.SelectionSet) > 0 {
 					queries[i], _ = op.SelectionSet[0].(*ast.Field)
 				}
 			}
 
 			// Test mutex implementation - all writes queue up on the write lock
-			_, doc0, op0 := generateComplexQuery(0)
+			doc0, op0 := generateComplexQuery(0)
 			opCtx := &OperationContext{
 				RawQuery:  "write contention test",
 				Variables: make(map[string]any),
@@ -146,10 +146,16 @@ func TestCollectFieldsCache_WriteLockContention(t *testing.T) {
 
 			if mutexTime > time.Duration(tt.targetTimeMs)*time.Millisecond {
 				t.Logf("")
-				t.Logf("✓ Successfully reproduced production-level contention (%dms+)", tt.targetTimeMs)
+				t.Logf(
+					"✓ Successfully reproduced production-level contention (%dms+)",
+					tt.targetTimeMs,
+				)
 				if savedTime > 100*time.Millisecond {
 					t.Logf("✓ sync.Map would save %v in this scenario!", savedTime)
-					t.Logf("  That's %.0fms less latency for your users", float64(savedTime.Milliseconds()))
+					t.Logf(
+						"  That's %.0fms less latency for your users",
+						float64(savedTime.Milliseconds()),
+					)
 				}
 			} else {
 				t.Logf("")
@@ -177,7 +183,7 @@ func BenchmarkCollectFieldsCache_WriteLockContention(b *testing.B) {
 		// Generate queries
 		queries := make([]*ast.Field, cfg.uniqueKeys)
 		for i := 0; i < cfg.uniqueKeys; i++ {
-			_, _, op := generateComplexQuery(i)
+			_, op := generateComplexQuery(i)
 			if len(op.SelectionSet) > 0 {
 				queries[i], _ = op.SelectionSet[0].(*ast.Field)
 			}
@@ -186,7 +192,7 @@ func BenchmarkCollectFieldsCache_WriteLockContention(b *testing.B) {
 		b.Run(fmt.Sprintf("mutex_%dg_%dk", cfg.goroutines, cfg.uniqueKeys), func(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, doc, op := generateComplexQuery(0)
+				doc, op := generateComplexQuery(0)
 				opCtx := &OperationContext{
 					RawQuery:  "bench",
 					Variables: make(map[string]any),
@@ -205,10 +211,19 @@ func BenchmarkCollectFieldsCache_WriteLockContention(b *testing.B) {
 						field := queries[queryIdx]
 						if field != nil {
 							satisfies := [][]string{
-								{"User"}, {"Post"}, {"Comment"}, {"Tag"},
-								{"User", "Post"}, {"Post", "Comment"}, nil,
+								{"User"},
+								{"Post"},
+								{"Comment"},
+								{"Tag"},
+								{"User", "Post"},
+								{"Post", "Comment"},
+								nil,
 							}
-							_ = CollectFields(opCtx, field.SelectionSet, satisfies[idx%len(satisfies)])
+							_ = CollectFields(
+								opCtx,
+								field.SelectionSet,
+								satisfies[idx%len(satisfies)],
+							)
 						}
 					}(j)
 				}
@@ -222,7 +237,7 @@ func BenchmarkCollectFieldsCache_WriteLockContention(b *testing.B) {
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
 				cache := &collectFieldsCacheSyncMap{}
-				_, doc, op := generateComplexQuery(0)
+				doc, op := generateComplexQuery(0)
 				opCtx := &OperationContext{
 					RawQuery:  "bench",
 					Variables: make(map[string]any),
@@ -241,10 +256,20 @@ func BenchmarkCollectFieldsCache_WriteLockContention(b *testing.B) {
 						field := queries[queryIdx]
 						if field != nil {
 							satisfies := [][]string{
-								{"User"}, {"Post"}, {"Comment"}, {"Tag"},
-								{"User", "Post"}, {"Post", "Comment"}, nil,
+								{"User"},
+								{"Post"},
+								{"Comment"},
+								{"Tag"},
+								{"User", "Post"},
+								{"Post", "Comment"},
+								nil,
 							}
-							_ = CollectFieldsSyncMap(cache, opCtx, field.SelectionSet, satisfies[idx%len(satisfies)])
+							_ = CollectFieldsSyncMap(
+								cache,
+								opCtx,
+								field.SelectionSet,
+								satisfies[idx%len(satisfies)],
+							)
 						}
 					}(j)
 				}

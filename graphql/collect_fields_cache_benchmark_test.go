@@ -122,7 +122,11 @@ func init() {
 		Name:  "benchmark",
 		Input: benchmarkSchemaSDL,
 	})
-	benchmarkDoc = gqlparser.MustLoadQueryWithRules(benchmarkSchema, benchmarkQuery, rules.NewDefaultRules())
+	benchmarkDoc = gqlparser.MustLoadQueryWithRules(
+		benchmarkSchema,
+		benchmarkQuery,
+		rules.NewDefaultRules(),
+	)
 	benchmarkOp = benchmarkDoc.Operations[0]
 }
 
@@ -296,7 +300,12 @@ func BenchmarkCollectFieldsCache_SyncMap_ColdStart_Concurrent(b *testing.B) {
 						defer wg.Done()
 						satisfies := []string{"User", "Post", "Comment"}
 						satisfy := satisfies[idx%len(satisfies)]
-						_ = CollectFieldsSyncMap(cache, opCtx, searchField.SelectionSet, []string{satisfy})
+						_ = CollectFieldsSyncMap(
+							cache,
+							opCtx,
+							searchField.SelectionSet,
+							[]string{satisfy},
+						)
 					}(j)
 				}
 
@@ -333,7 +342,12 @@ func BenchmarkCollectFieldsCache_SyncMap_WarmCache_Concurrent(b *testing.B) {
 						defer wg.Done()
 						satisfies := []string{"User", "Post", "Comment"}
 						satisfy := satisfies[idx%len(satisfies)]
-						_ = CollectFieldsSyncMap(cache, opCtx, searchField.SelectionSet, []string{satisfy})
+						_ = CollectFieldsSyncMap(
+							cache,
+							opCtx,
+							searchField.SelectionSet,
+							[]string{satisfy},
+						)
 					}(j)
 				}
 

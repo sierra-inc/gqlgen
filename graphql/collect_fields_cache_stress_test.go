@@ -77,7 +77,7 @@ var stressTestSchema = gqlparser.MustLoadSchema(&ast.Source{
 })
 
 // generateComplexQuery creates queries with varying complexity to hit different cache keys
-func generateComplexQuery(variant int) (string, *ast.QueryDocument, *ast.OperationDefinition) {
+func generateComplexQuery(variant int) (*ast.QueryDocument, *ast.OperationDefinition) {
 	queries := []string{
 		// Query 1: Search with fragments
 		`query { search(type: "user") { id name ... on User { email profile { bio avatar } posts { id title } } } }`,
@@ -93,7 +93,7 @@ func generateComplexQuery(variant int) (string, *ast.QueryDocument, *ast.Operati
 
 	query := queries[variant%len(queries)]
 	doc := gqlparser.MustLoadQueryWithRules(stressTestSchema, query, rules.NewDefaultRules())
-	return query, doc, doc.Operations[0]
+	return doc, doc.Operations[0]
 }
 
 // BenchmarkCollectFieldsCache_ProductionStress simulates the 700ms contention scenario
@@ -127,7 +127,7 @@ func BenchmarkCollectFieldsCache_ProductionStress(b *testing.B) {
 						// Each goroutine does multiple operations (simulating a real request)
 						// Use different query variants to create many cache keys
 						queryVariant := idx % 5
-						_, doc, op := generateComplexQuery(queryVariant)
+						doc, op := generateComplexQuery(queryVariant)
 
 						opCtx.Doc = doc
 						opCtx.Operation = op
@@ -139,7 +139,11 @@ func BenchmarkCollectFieldsCache_ProductionStress(b *testing.B) {
 									// Collect fields for different satisfies
 									_ = CollectFields(opCtx, field.SelectionSet, []string{"User"})
 									_ = CollectFields(opCtx, field.SelectionSet, []string{"Post"})
-									_ = CollectFields(opCtx, field.SelectionSet, []string{"Comment"})
+									_ = CollectFields(
+										opCtx,
+										field.SelectionSet,
+										[]string{"Comment"},
+									)
 									_ = CollectFields(opCtx, field.SelectionSet, nil)
 								}
 							}
@@ -191,7 +195,7 @@ func BenchmarkCollectFieldsCache_SyncMap_ProductionStress(b *testing.B) {
 						goroutineStart := time.Now()
 
 						queryVariant := idx % 5
-						_, doc, op := generateComplexQuery(queryVariant)
+						doc, op := generateComplexQuery(queryVariant)
 
 						opCtx.Doc = doc
 						opCtx.Operation = op
@@ -199,9 +203,24 @@ func BenchmarkCollectFieldsCache_SyncMap_ProductionStress(b *testing.B) {
 						if len(op.SelectionSet) > 0 {
 							for _, sel := range op.SelectionSet {
 								if field, ok := sel.(*ast.Field); ok {
-									_ = CollectFieldsSyncMap(cache, opCtx, field.SelectionSet, []string{"User"})
-									_ = CollectFieldsSyncMap(cache, opCtx, field.SelectionSet, []string{"Post"})
-									_ = CollectFieldsSyncMap(cache, opCtx, field.SelectionSet, []string{"Comment"})
+									_ = CollectFieldsSyncMap(
+										cache,
+										opCtx,
+										field.SelectionSet,
+										[]string{"User"},
+									)
+									_ = CollectFieldsSyncMap(
+										cache,
+										opCtx,
+										field.SelectionSet,
+										[]string{"Post"},
+									)
+									_ = CollectFieldsSyncMap(
+										cache,
+										opCtx,
+										field.SelectionSet,
+										[]string{"Comment"},
+									)
 									_ = CollectFieldsSyncMap(cache, opCtx, field.SelectionSet, nil)
 								}
 							}
@@ -243,14 +262,13 @@ func TestCollectFieldsCache_MeasureContention(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			t.Logf("Testing with %d goroutines (expecting ~%dms of contention)", tt.numGoroutines, tt.targetTimeMs)
+			t.Logf(
+				"Testing with %d goroutines (expecting ~%dms of contention)",
+				tt.numGoroutines,
+				tt.targetTimeMs,
+			)
 
 			// Test current mutex implementation
-			opCtx := &OperationContext{
-				RawQuery:  "contention test",
-				Variables: make(map[string]any),
-			}
-
 			start := time.Now()
 			var wg sync.WaitGroup
 			wg.Add(tt.numGoroutines)
@@ -260,9 +278,13 @@ func TestCollectFieldsCache_MeasureContention(t *testing.T) {
 					defer wg.Done()
 
 					queryVariant := idx % 5
-					_, doc, op := generateComplexQuery(queryVariant)
-					opCtx.Doc = doc
-					opCtx.Operation = op
+					doc, op := generateComplexQuery(queryVariant)
+					opCtx := &OperationContext{
+						RawQuery:  "contention test",
+						Variables: make(map[string]any),
+						Doc:       doc,
+						Operation: op,
+					}
 
 					if len(op.SelectionSet) > 0 {
 						for _, sel := range op.SelectionSet {
@@ -281,10 +303,6 @@ func TestCollectFieldsCache_MeasureContention(t *testing.T) {
 
 			// Test sync.Map implementation
 			cache := &collectFieldsCacheSyncMap{}
-			opCtxSync := &OperationContext{
-				RawQuery:  "contention test",
-				Variables: make(map[string]any),
-			}
 
 			start = time.Now()
 			wg.Add(tt.numGoroutines)
@@ -294,16 +312,35 @@ func TestCollectFieldsCache_MeasureContention(t *testing.T) {
 					defer wg.Done()
 
 					queryVariant := idx % 5
-					_, doc, op := generateComplexQuery(queryVariant)
-					opCtxSync.Doc = doc
-					opCtxSync.Operation = op
+					doc, op := generateComplexQuery(queryVariant)
+					opCtxSync := &OperationContext{
+						RawQuery:  "contention test",
+						Variables: make(map[string]any),
+						Doc:       doc,
+						Operation: op,
+					}
 
 					if len(op.SelectionSet) > 0 {
 						for _, sel := range op.SelectionSet {
 							if field, ok := sel.(*ast.Field); ok {
-								_ = CollectFieldsSyncMap(cache, opCtxSync, field.SelectionSet, []string{"User"})
-								_ = CollectFieldsSyncMap(cache, opCtxSync, field.SelectionSet, []string{"Post"})
-								_ = CollectFieldsSyncMap(cache, opCtxSync, field.SelectionSet, []string{"Comment"})
+								_ = CollectFieldsSyncMap(
+									cache,
+									opCtxSync,
+									field.SelectionSet,
+									[]string{"User"},
+								)
+								_ = CollectFieldsSyncMap(
+									cache,
+									opCtxSync,
+									field.SelectionSet,
+									[]string{"Post"},
+								)
+								_ = CollectFieldsSyncMap(
+									cache,
+									opCtxSync,
+									field.SelectionSet,
+									[]string{"Comment"},
+								)
 							}
 						}
 					}
@@ -318,12 +355,19 @@ func TestCollectFieldsCache_MeasureContention(t *testing.T) {
 			t.Logf("Mutex implementation:   %v", mutexTime)
 			t.Logf("sync.Map implementation: %v", syncMapTime)
 			t.Logf("Improvement: %.1f%% faster (saved %v)", improvement, mutexTime-syncMapTime)
-			t.Logf("Cache entries: %d", opCtx.collectFieldsCache.Len())
+			t.Logf("Cache entries (sync.Map): %d", cache.Len())
 
 			if mutexTime > time.Duration(tt.targetTimeMs)*time.Millisecond {
-				t.Logf("✓ Successfully reproduced production-level contention (%dms+)", tt.targetTimeMs)
+				t.Logf(
+					"✓ Successfully reproduced production-level contention (%dms+)",
+					tt.targetTimeMs,
+				)
 			} else {
-				t.Logf("⚠ Did not fully reproduce production contention (got %v, expected %dms+)", mutexTime, tt.targetTimeMs)
+				t.Logf(
+					"⚠ Did not fully reproduce production contention (got %v, expected %dms+)",
+					mutexTime,
+					tt.targetTimeMs,
+				)
 			}
 		})
 	}

@@ -18,18 +18,19 @@ func slowCollectFields(
 	selSet ast.SelectionSet,
 	satisfies []string,
 	computeDelay time.Duration,
-) []CollectedField {
+) {
 	cacheKey := makeCollectFieldsCacheKey(selSet, satisfies)
 
 	if cached, ok := reqCtx.collectFieldsCache.Get(cacheKey); ok {
-		return cached
+		_ = cached
+		return
 	}
 
 	// Simulate complex query processing that takes time
 	time.Sleep(computeDelay)
 
 	result := collectFields(reqCtx, selSet, satisfies, map[string]bool{})
-	return reqCtx.collectFieldsCache.Add(cacheKey, result)
+	_ = reqCtx.collectFieldsCache.Add(cacheKey, result)
 }
 
 func slowCollectFieldsSyncMap(
@@ -38,18 +39,19 @@ func slowCollectFieldsSyncMap(
 	selSet ast.SelectionSet,
 	satisfies []string,
 	computeDelay time.Duration,
-) []CollectedField {
+) {
 	cacheKey := makeCollectFieldsCacheKey(selSet, satisfies)
 
 	if cached, ok := cache.Get(cacheKey); ok {
-		return cached
+		_ = cached
+		return
 	}
 
 	// Simulate complex query processing
 	time.Sleep(computeDelay)
 
 	result := collectFields(reqCtx, selSet, satisfies, map[string]bool{})
-	return cache.Add(cacheKey, result)
+	_ = cache.Add(cacheKey, result)
 }
 
 // Test with artificial slowdown to see if we can hit 700ms
@@ -78,7 +80,7 @@ func TestCollectFieldsCache_SlowQuery_Contention(t *testing.T) {
 			queryDelay := time.Duration(tt.queryComplexityMs) * time.Millisecond
 
 			// Test mutex implementation
-			_, doc, op := generateComplexQuery(0)
+			doc, op := generateComplexQuery(0)
 			opCtx := &OperationContext{
 				RawQuery:  "slow query test",
 				Variables: make(map[string]any),
@@ -104,7 +106,7 @@ func TestCollectFieldsCache_SlowQuery_Contention(t *testing.T) {
 					// Use different satisfies to create contention on writes
 					satisfies := []string{"User", "Post", "Comment", "Tag"}
 					satisfy := []string{satisfies[idx%len(satisfies)]}
-					_ = slowCollectFields(opCtx, field.SelectionSet, satisfy, queryDelay)
+					slowCollectFields(opCtx, field.SelectionSet, satisfy, queryDelay)
 				}(j)
 			}
 
@@ -128,7 +130,13 @@ func TestCollectFieldsCache_SlowQuery_Contention(t *testing.T) {
 					defer wg.Done()
 					satisfies := []string{"User", "Post", "Comment", "Tag"}
 					satisfy := []string{satisfies[idx%len(satisfies)]}
-					_ = slowCollectFieldsSyncMap(cache, opCtxSync, field.SelectionSet, satisfy, queryDelay)
+					slowCollectFieldsSyncMap(
+						cache,
+						opCtxSync,
+						field.SelectionSet,
+						satisfy,
+						queryDelay,
+					)
 				}(j)
 			}
 
@@ -143,7 +151,10 @@ func TestCollectFieldsCache_SlowQuery_Contention(t *testing.T) {
 			t.Logf("Improvement: %.1f%% faster (saved %v)", improvement, savedTime)
 
 			if mutexTime > time.Duration(tt.targetTimeMs)*time.Millisecond {
-				t.Logf("✓ Successfully reproduced production-level contention (%dms+)", tt.targetTimeMs)
+				t.Logf(
+					"✓ Successfully reproduced production-level contention (%dms+)",
+					tt.targetTimeMs,
+				)
 				t.Logf("✓ sync.Map saved %v of contention time", savedTime)
 			}
 
@@ -165,7 +176,7 @@ func BenchmarkCollectFieldsCache_SlowQuery(b *testing.B) {
 		for _, numGoroutines := range goroutines {
 			b.Run(fmt.Sprintf("mutex_%dms_%dg", complexity, numGoroutines), func(b *testing.B) {
 				queryDelay := time.Duration(complexity) * time.Millisecond
-				_, doc, op := generateComplexQuery(0)
+				doc, op := generateComplexQuery(0)
 				var field *ast.Field
 				if len(op.SelectionSet) > 0 {
 					field, _ = op.SelectionSet[0].(*ast.Field)
@@ -189,7 +200,7 @@ func BenchmarkCollectFieldsCache_SlowQuery(b *testing.B) {
 							defer wg.Done()
 							satisfies := []string{"User", "Post", "Comment", "Tag"}
 							satisfy := []string{satisfies[idx%len(satisfies)]}
-							_ = slowCollectFields(opCtx, field.SelectionSet, satisfy, queryDelay)
+							slowCollectFields(opCtx, field.SelectionSet, satisfy, queryDelay)
 						}(j)
 					}
 
@@ -201,7 +212,7 @@ func BenchmarkCollectFieldsCache_SlowQuery(b *testing.B) {
 
 			b.Run(fmt.Sprintf("syncmap_%dms_%dg", complexity, numGoroutines), func(b *testing.B) {
 				queryDelay := time.Duration(complexity) * time.Millisecond
-				_, doc, op := generateComplexQuery(0)
+				doc, op := generateComplexQuery(0)
 				var field *ast.Field
 				if len(op.SelectionSet) > 0 {
 					field, _ = op.SelectionSet[0].(*ast.Field)
@@ -226,7 +237,13 @@ func BenchmarkCollectFieldsCache_SlowQuery(b *testing.B) {
 							defer wg.Done()
 							satisfies := []string{"User", "Post", "Comment", "Tag"}
 							satisfy := []string{satisfies[idx%len(satisfies)]}
-							_ = slowCollectFieldsSyncMap(cache, opCtx, field.SelectionSet, satisfy, queryDelay)
+							slowCollectFieldsSyncMap(
+								cache,
+								opCtx,
+								field.SelectionSet,
+								satisfy,
+								queryDelay,
+							)
 						}(j)
 					}
 
