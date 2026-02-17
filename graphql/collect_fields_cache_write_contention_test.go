@@ -31,8 +31,8 @@ func TestCollectFieldsCache_WriteLockContention(t *testing.T) {
 	}{
 		{"moderate_write_burst", 500, 100, 50},
 		{"high_write_burst", 1000, 200, 150},
-		{"extreme_write_burst", 5000, 500, 700},     // This should hit 700ms+
-		{"massive_write_burst", 10000, 1000, 1000},  // Even more extreme
+		{"extreme_write_burst", 5000, 500, 700},    // This should hit 700ms+
+		{"massive_write_burst", 10000, 1000, 1000}, // Even more extreme
 	}
 
 	for _, tt := range tests {

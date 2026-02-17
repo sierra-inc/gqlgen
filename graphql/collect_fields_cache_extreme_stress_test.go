@@ -64,10 +64,10 @@ func TestCollectFieldsCache_SlowQuery_Contention(t *testing.T) {
 		queryComplexityMs int // How long each collectFields computation takes
 		targetTimeMs      int
 	}{
-		{"moderate_slow_query", 100, 5, 100},   // 100 goroutines, 5ms per query
-		{"complex_slow_query", 200, 5, 300},    // 200 goroutines, 5ms per query
-		{"very_complex_query", 500, 2, 700},    // 500 goroutines, 2ms per query
-		{"extreme_complexity", 1000, 1, 700},   // 1000 goroutines, 1ms per query
+		{"moderate_slow_query", 100, 5, 100}, // 100 goroutines, 5ms per query
+		{"complex_slow_query", 200, 5, 300},  // 200 goroutines, 5ms per query
+		{"very_complex_query", 500, 2, 700},  // 500 goroutines, 2ms per query
+		{"extreme_complexity", 1000, 1, 700}, // 1000 goroutines, 1ms per query
 	}
 
 	for _, tt := range tests {

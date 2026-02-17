@@ -232,9 +232,9 @@ func TestCollectFieldsCache_MeasureContention(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		numGoroutines  int
-		targetTimeMs   int // Expected time if 700ms was seen in production
+		name          string
+		numGoroutines int
+		targetTimeMs  int // Expected time if 700ms was seen in production
 	}{
 		{"moderate_contention", 500, 100},
 		{"high_contention", 1000, 300},
