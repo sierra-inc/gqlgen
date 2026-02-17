@@ -16,46 +16,41 @@ type collectFieldsCacheKey struct {
 }
 
 // collectFieldsCacheStore manages CollectFields cache entries safely.
+// Uses sync.Map for better performance under concurrent write scenarios (cold start).
 type collectFieldsCacheStore struct {
-	mu    sync.RWMutex
-	items map[collectFieldsCacheKey][]CollectedField
+	items sync.Map // map[collectFieldsCacheKey][]CollectedField
 }
 
 // Get returns the cached result for the key if present.
 func (s *collectFieldsCacheStore) Get(key collectFieldsCacheKey) ([]CollectedField, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if s.items == nil {
+	val, ok := s.items.Load(key)
+	if !ok {
 		return nil, false
 	}
-	val, ok := s.items[key]
-	return val, ok
+	return val.([]CollectedField), true
 }
 
 // Add stores the value when absent and returns the cached value.
+// LoadOrStore is used to handle concurrent writes efficiently.
 func (s *collectFieldsCacheStore) Add(
 	key collectFieldsCacheKey,
 	value []CollectedField,
 ) []CollectedField {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.items == nil {
-		s.items = make(map[collectFieldsCacheKey][]CollectedField)
-	}
-
-	if existing, ok := s.items[key]; ok {
-		return existing
-	}
-	s.items[key] = value
-	return value
+	// LoadOrStore is atomic and optimized for concurrent access
+	// It only stores if the key doesn't exist, otherwise returns the existing value
+	actual, _ := s.items.LoadOrStore(key, value)
+	return actual.([]CollectedField)
 }
 
 // Len returns the number of cached entries.
+// Note: This requires iterating over all entries and is O(n).
 func (s *collectFieldsCacheStore) Len() int {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.items)
+	count := 0
+	s.items.Range(func(_, _ any) bool {
+		count++
+		return true
+	})
+	return count
 }
 
 // makeCollectFieldsCacheKey generates a cache key for CollectFields.
