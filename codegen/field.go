@@ -684,27 +684,25 @@ func (f *Field) ShortResolverSignature(ft *goast.FuncType) string {
 	}
 	if inlineInfo != nil {
 		goType := formatGoType(inlineInfo.GoType)
-		resSb540.WriteString(fmt.Sprintf(", %s %s", inlineInfo.OriginalArgName, goType))
+		fmt.Fprintf(&resSb540, ", %s %s", inlineInfo.OriginalArgName, goType)
 
 		for _, arg := range f.Args {
 			if !contains(inlineInfo.ExpandedArgs, arg.Name) {
-				resSb540.WriteString(
-					fmt.Sprintf(
-						", %s %s",
-						arg.VarName,
-						templates.CurrentImports.LookupType(arg.TypeReference.GO),
-					),
+				fmt.Fprintf(
+					&resSb540,
+					", %s %s",
+					arg.VarName,
+					templates.CurrentImports.LookupType(arg.TypeReference.GO),
 				)
 			}
 		}
 	} else {
 		for _, arg := range f.Args {
-			resSb540.WriteString(
-				fmt.Sprintf(
-					", %s %s",
-					arg.VarName,
-					templates.CurrentImports.LookupType(arg.TypeReference.GO),
-				),
+			fmt.Fprintf(
+				&resSb540,
+				", %s %s",
+				arg.VarName,
+				templates.CurrentImports.LookupType(arg.TypeReference.GO),
 			)
 		}
 	}
@@ -743,12 +741,11 @@ func (f *Field) ComplexitySignature() string {
 	res := "func(childComplexity int"
 	var resSb571 strings.Builder
 	for _, arg := range f.Args {
-		resSb571.WriteString(
-			fmt.Sprintf(
-				", %s %s",
-				arg.VarName,
-				templates.CurrentImports.LookupType(arg.TypeReference.GO),
-			),
+		fmt.Fprintf(
+			&resSb571,
+			", %s %s",
+			arg.VarName,
+			templates.CurrentImports.LookupType(arg.TypeReference.GO),
 		)
 	}
 	res += resSb571.String()
